@@ -1,4 +1,4 @@
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI } from '@google/genai'
 import dotenv from 'dotenv'
 const env = dotenv.config().parsed // 环境参数
 import fs from 'fs'
@@ -13,37 +13,36 @@ if (!fs.existsSync(envPath)) {
 }
 
 if (!env.GEMINI_API_KEY) {
-    console.log('❌ 请先根据文档，配置GEMINI_API_KEY!')
-    process.exit(1)
+  console.log('❌ 请先根据文档，配置GEMINI_API_KEY!')
+  process.exit(1)
 }
 
-let config = {
+// 默認使用Gemini-2.5-flash
+const targetModel = env.GEMINI_MODEL ? env.GEMINI_MODEL : 'gemini-2.5-flash'
+
+const gemini = new GoogleGenAI({
   apiKey: env.GEMINI_API_KEY,
-  // 如果没有配置model，则默认使用gemini-2.5-flash
-  baseModel: env.GEMINI_MODEL ? env.GEMINI_MODEL : "gemini-2.5-flash"
-}
-
-const gemini = new GoogleGenAI(config)
+})
 
 export async function getGeminiReply(prompt) {
-    if (!prompt) {
-        console.warn('⚠️ Warning: Received empty prompt.');
-        return '';
+  if (!prompt) {
+    console.warn('⚠️ Warning: Received empty prompt.')
+    return ''
+  }
+  console.log('🚀🚀🚀 / prompt', prompt)
+  try {
+    const response = await gemini.models.generateContent({
+      model: targetModel,
+      contents: prompt,
+    })
+    if (!response || !response.text) {
+      console.warn('⚠️ Warning: Empty response from Gemini (possibly blocked by safety settings).')
+      return ''
     }
-    console.log('🚀🚀🚀 / prompt', prompt)
-    try {
-        const response = await gemini.models.generateContent({
-            model: config.baseModel,
-            contents: prompt,
-        });
-        if (!response || !response.text) {
-            console.warn('⚠️ Warning: Empty response from Gemini (possibly blocked by safety settings).');
-            return '';
-        }
-        console.log('🚀🚀🚀 / reply', response.text);
-        return `${response.text}`
-    } catch (error){ 
-        console.error('❌ Gemini API Error:', error.message);
-        return '';
-    }
+    console.log('🚀🚀🚀 / reply', response.text)
+    return `${response.text}`
+  } catch (error) {
+    console.error('❌ Gemini API Error:', error.message)
+    return ''
+  }
 }

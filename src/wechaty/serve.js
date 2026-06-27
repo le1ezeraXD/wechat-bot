@@ -1,48 +1,44 @@
-import { getGptReply } from '../openai/index.js'
-import { getDoubaoReply } from '../doubao/index.js'
-import { getDeepseekReply } from '../deepseek/index.js'
-import { getKimiReply } from '../kimi/index.js'
-import { getXunfeiReply } from '../xunfei/index.js'
-import { getDeepSeekFreeReply } from '../deepseek-free/index.js'
-import { get302AiReply } from '../302ai/index.js'
-import { getDifyReply } from '../dify/index.js'
-import { getOllamaReply } from '../ollama/index.js'
-import { getTongyiReply } from '../tongyi/index.js'
-import { getClaudeReply } from '../claude/index.js'
-import { getGeminiReply } from '../Gemini/index.js'
+function lazyServe(loader, exportName) {
+  return async (...args) => {
+    const module = await loader()
+    return module[exportName](...args)
+  }
+}
 
 /**
- * 获取ai服务
- * @param serviceType 服务类型 'GPT' | 'Kimi'
- * @returns {Promise<void>}
+ * 获取 AI 服务
+ * @param serviceType 服务类型
+ * @returns {Function}
  */
 export function getServe(serviceType) {
   switch (serviceType) {
     case 'ChatGPT':
-      return getGptReply
+      return lazyServe(() => import('../openai/index.js'), 'getGptReply')
     case 'doubao':
-      return getDoubaoReply
+      return lazyServe(() => import('../doubao/index.js'), 'getDoubaoReply')
     case 'deepseek':
-      return getDeepseekReply
+      return lazyServe(() => import('../deepseek/index.js'), 'getDeepseekReply')
     case 'Kimi':
-      return getKimiReply
+      return lazyServe(() => import('../kimi/index.js'), 'getKimiReply')
     case 'Xunfei':
-      return getXunfeiReply
+      return lazyServe(() => import('../xunfei/index.js'), 'getXunfeiReply')
     case 'deepseek-free':
-      return getDeepSeekFreeReply
+      return lazyServe(() => import('../deepseek-free/index.js'), 'getDeepSeekFreeReply')
     case '302AI':
-      return get302AiReply
+      return lazyServe(() => import('../302ai/index.js'), 'get302AiReply')
     case 'dify':
-      return getDifyReply
+      return lazyServe(() => import('../dify/index.js'), 'getDifyReply')
     case 'ollama':
-      return getOllamaReply
+      return lazyServe(() => import('../ollama/index.js'), 'getOllamaReply')
     case 'tongyi':
-      return getTongyiReply
+      return lazyServe(() => import('../tongyi/index.js'), 'getTongyiReply')
     case 'claude':
-      return getClaudeReply
+      return lazyServe(() => import('../claude/index.js'), 'getClaudeReply')
+    case 'pi':
+      return lazyServe(() => import('../pi/index.js'), 'getPiReply')
     case 'Gemini':
-      return getGeminiReply
+      return lazyServe(() => import('../Gemini/index.js'), 'getGeminiReply')
     default:
-      return getGptReply
+      return lazyServe(() => import('../openai/index.js'), 'getGptReply')
   }
 }
