@@ -1,10 +1,62 @@
 # WeChat Bot
 
-一个 基于 `chatgpt` + `wechaty` 的微信机器人
+一个基于 `Wechaty` 的微信 / IM agent 项目。
 
-可以用来帮助你自动回复微信消息，或者管理微信群/好友.
+它可以把微信扫码登录后的 IM 消息交给 ChatGPT、DeepSeek、Ollama、Claude、Pi 等服务处理；也可以通过 OpenCLI 的 `wx-cli` 访问本机微信聊天、联系人、群成员、收藏、朋友圈缓存，并对群聊或某个好友做统计和分析。飞书 IM 目前提供登录、读消息、搜消息和发消息的 CLI 通道。
 
-`简单`，`好用`，`2分钟（4 个步骤）` 就能玩起来了。🌸 如果对您有所帮助，请点个 Star ⭐️ 支持一下。
+如果你希望把 Pi 作为本项目的 agent，用微信作为外部通信渠道，直接看：[Pi Agent + IM 使用说明](./docs/pi-im-agent.md)。
+
+## 能力概览
+
+| 能力                           | 命令入口                                                     | 当前状态                                     |
+| ------------------------------ | ------------------------------------------------------------ | -------------------------------------------- |
+| 微信扫码 IM                    | `wb agent --im wechat --agent pi` / `wb start --serve pi`    | 已接入，可扫码登录并回复白名单消息           |
+| Pi 作为项目 agent              | `wb agent --im wechat --agent pi`                            | 已接入，默认单轮非交互回复                   |
+| 本地微信聊天 / 联系人 / 群成员 | `wb wx sessions`、`wb wx history`、`wb wx members`           | 通过 OpenCLI `wx-cli` 接入                   |
+| 本地朋友圈缓存                 | `wb wx sns-feed`、`wb wx sns-search`                         | 通过 OpenCLI `wx-cli` 接入                   |
+| 群 / 好友分析                  | `wb analyze --room "群名"`、`wb analyze --friend "好友备注"` | 支持本地统计和 AI 深度分析                   |
+| 飞书 IM                        | `wb lark login`、`wb lark messages`、`wb lark send`          | 支持登录、读、搜、发；暂未做实时事件自动回复 |
+| 多模型回复                     | `--serve ChatGPT/deepseek/ollama/pi/...`                     | 复用现有 provider 机制                       |
+
+## 快速开始：Pi + 微信 IM
+
+```sh
+npm i
+cp .env.example .env
+npm link
+```
+
+在 `.env` 中至少配置：
+
+```env
+BOT_NAME='@你的微信昵称'
+ALIAS_WHITELIST='允许私聊你的好友备注'
+ROOM_WHITELIST='允许接入的群名'
+
+PI_BIN='pi'
+PI_AGENT_ARGS='--print --no-session'
+WECHAT_STORE_MESSAGES='true'
+```
+
+启动：
+
+```sh
+wb agent --im wechat --agent pi
+```
+
+终端出现二维码后，用微信扫码。消息链路是：
+
+```text
+微信扫码登录 -> Wechaty 收消息 -> 本地 JSONL 捕获 -> Pi agent 回复 -> 微信 IM 发回
+```
+
+触发规则：
+
+- 私聊：好友备注或昵称需要在 `ALIAS_WHITELIST`。
+- 群聊：群名需要在 `ROOM_WHITELIST`，并且消息里需要 `@BOT_NAME`。
+- 非文本消息不会自动进入回复链路。
+
+> 注意：微信 Web 协议存在风控和封号风险。请只在你明确接受风险的账号和场景中使用，优先控制白名单和使用范围。
 
 <div align='center'>
   <a href="https://trendshift.io/repositories/11077" target="_blank"><img src="https://trendshift.io/api/badge/repositories/11077" alt="wangrongding%2Fwechat-bot | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
@@ -22,7 +74,23 @@
 
 ![](https://github.com/user-attachments/assets/1c312cf4-73d8-44a1-8f36-5ea288ac0aa4)
 
-## 使用前需要配置的 AI 服务（目前支持 9 种，可任选其一）
+## 支持的回复 / Agent 服务
+
+如果只使用 `wb wx ...` 访问本地微信数据，或只使用 `wb lark ...` 操作飞书 IM，可以不配置大模型。
+
+如果要让微信消息自动回复，或执行 `wb analyze` 深度分析，需要选择一个 `--serve` 服务。当前可选：`ChatGPT`、`doubao`、`deepseek`、`Kimi`、`Xunfei`、`deepseek-free`、`302AI`、`dify`、`ollama`、`tongyi`、`claude`、`pi`。
+
+- pi
+
+  Pi 适合作为项目 agent 使用，可通过微信 IM 对外通信：
+
+  ```env
+  PI_BIN='pi'
+  PI_NPM_PACKAGE='@earendil-works/pi-coding-agent'
+  PI_AGENT_ARGS='--print --no-session'
+  ```
+
+  如果本机没有全局 `pi` 命令，可以先把 `PI_BIN` 留空，项目会通过 `npx --yes @earendil-works/pi-coding-agent` 调起 Pi。
 
 - deepseek
 
@@ -139,9 +207,8 @@
 
 - Gemini
 
-  前往[Gemini API Quickstart官网](https://ai.google.dev/gemini-api/docs/quickstart)创建API并在.env中配置即可，里面有详细教程。
-  Gemini配置比较简单，只需要一个API就可以了。
-  收费方式和OpenAI差不多，依旧是需要海外信用卡。
+  前往[Gemini API Quickstart官网](https://ai.google.dev/gemini-api/docs/quickstart)创建API并在.env中配置即可，里面有详细教程。Gemini配置比较简单，只需要一个API就可以了。收费方式和OpenAI差不多，依旧是需要海外信用卡。
+
   ```bash
   # 执行下面命令，拷贝一份 .env.example 文件为 .env，如果已存在则忽略此步
   cp .env.example .env
@@ -151,8 +218,8 @@
   GEMINI_MODEL = 'gemini-2.5-flash'
 
   ```
-  关于GEMINI_MODEL处可用的Model List，参见[Models](https://ai.google.dev/gemini-api/docs/models)
 
+  关于GEMINI_MODEL处可用的Model List，参见[Models](https://ai.google.dev/gemini-api/docs/models)
 
 - 其他  
   （待实践）理论上使用 openAI 格式的 api，都可以使用，在 env 文件中修改对应的 api_key、model、proxy_url 即可。
@@ -162,88 +229,193 @@
 - [gpt4free](https://github.com/xtekky/gpt4free)
 - [chatanywhere](https://github.com/chatanywhere/GPT_API_free)
 
-## 赞助商
-
-<div align="center">
-  <table>
-    <!-- Header -->
-    <tr>
-      <td align="center">
-        <p align="center">
-          <a href="https://api.shenfengwl.fun/" target="_blank">
-            <img src="./sponsors/shenfengwl.png" alt="深风网络" width="500px"/>
-          </a>
-        </p>
-      </td>
-    </tr>
-    <!-- Description -->
-    <tr>
-      <td align="left">
-        主营海外主流大模型中转聚合API平台，高效稳定，高并发，价格超低
-        <a href="https://api.shenfengwl.fun/" target="_blank">产品链接</a>
-      </td>
-    </tr>
-  </table>
-</div>
-
-目前该项目流量较大，已经上过 27 次 [Github Trending 榜](https://github.com/trending)，如果您的公司或者产品需要推广，可以在下方二维码处联系我，我会在项目中加入您的广告，帮助您的产品获得更多的曝光。
-
 ## 开发/使用
 
 检查好自己的开发环境，确保已经安装了 `nodejs` , 版本需要满足 Node.js >= v18.0 ，版本太低会导致运行报错,最好使用 LTS 版本。
 
-1. 安装依赖
+### 1. 安装依赖
 
 > 安装依赖时，大陆的朋友推荐切到 taobao 镜像源后再安装，命令：  
 > `npm config set registry https://registry.npmmirror.com`  
 > 想要灵活切换，推荐使用我的工具 👉🏻 [prm-cli](https://github.com/wangrongding/prm-cli) 快速切换。
 
 ```sh
-# 安装依赖
 npm i
-# 推荐用 yarn 吧，npm 安装有时会遇到 wechaty 内部依赖安装失败的问题
-yarn
+
+# 可选：把 wb 注册成本机命令
+npm link
 ```
 
-2. 运行服务
+如果不想执行 `npm link`，下文所有 `wb ...` 都可以替换为：
 
 ```sh
-# 启动服务
-npm run dev # 或者 npm run start
-# 启动服务
-yarn dev # 或者 yarn start
+npm run start -- ...
 ```
 
-然后就可以扫码登录了，然后根据你的需求，自己修改相关逻辑文件。
-
-![](https://assets.fedtop.com/picbed/202403261420468.png)
-
-![](https://assets.fedtop.com/picbed/202212071315670.png)
-
-为了兼容 docker 部署，避免不必要的选择交互，新增指定服务运行
+### 2. 配置 `.env`
 
 ```sh
-# 运行指定服务 （ 目前支持 ChatGPT | Kimi | Xunfei ）
-npm run start -- --serve Kimi
-# 交互选择服务，仍然保持原有的逻辑
-npm run start
+cp .env.example .env
 ```
 
-3. 测试
+最小可用配置：
 
-安装完依赖后，运行 `npm run dev` 前，可以先测试下 openai 的接口是否可用，运行 `npm run test` 即可。
+```env
+BOT_NAME='@你的微信昵称'
+ALIAS_WHITELIST='好友备注1,好友昵称2'
+ROOM_WHITELIST='群名1,群名2'
+AUTO_REPLY_PREFIX=''
 
-遇到 timeout 问题需要自行用魔法解决。（一般就是代理未成功，或者你的魔法服务限制了 openai api 的服务）
+WECHAT_DATA_DIR='.data/wechat'
+WECHAT_STORE_MESSAGES='true'
+
+PI_BIN='pi'
+PI_AGENT_ARGS='--print --no-session'
+```
+
+### 3. 启动微信 IM
+
+Pi agent 模式：
+
+```sh
+wb agent --im wechat --agent pi
+```
+
+等价写法：
+
+```sh
+wb start --serve pi
+npm run agent
+npm run start -- start --serve pi
+```
+
+传统模型回复模式：
+
+```sh
+wb start --serve ollama
+wb start --serve ChatGPT
+wb start --serve deepseek
+```
+
+启动后终端会展示二维码，扫码即可登录微信。登录后，收到的微信消息会追加写入：
+
+```text
+.data/wechat/messages.jsonl
+```
+
+### 4. 本地微信数据和朋友圈
+
+OpenCLI 的 `wx-cli` 会被 `wb wx ...` 透传调用，用于访问本机微信缓存：
+
+```sh
+wb wx init
+wb wx sessions
+wb wx history
+wb wx search
+wb wx contacts
+wb wx members
+wb wx stats
+wb wx favorites
+wb wx sns-feed
+wb wx sns-search
+wb wx sns-notifications
+wb wx help
+```
+
+常用场景：
+
+```sh
+# 初始化本地微信数据访问
+wb wx init
+
+# 查看最近会话和聊天记录
+wb wx sessions
+wb wx history
+
+# 查看群成员和聊天统计
+wb wx members
+wb wx stats
+
+# 查看朋友圈缓存和朋友圈全文搜索
+wb wx sns-feed
+wb wx sns-search
+```
+
+### 5. 群聊 / 好友分析
+
+命令行分析：
+
+```sh
+# 只做本地统计，不调用 AI
+wb analyze --room "群名" --stats-only
+wb analyze --friend "好友备注" --stats-only
+
+# 调用指定服务做深度分析
+wb analyze --room "群名" --serve pi
+wb analyze --friend "好友备注" --serve ollama
+```
+
+微信聊天中的内置命令默认只对联系人白名单或群聊白名单生效：
+
+```text
+/统计 群 XX群1
+/分析 好友 好友备注
+```
+
+`/统计` 只读本地 JSONL，不调用 AI；`/分析` 会把最近消息样本交给当前 `serve` 服务或 agent。处理隐私聊天时，建议优先使用本地模型或本地 Pi 配置。
+
+### 6. 飞书 IM
+
+飞书 IM 通过 `lark-cli` 接入：
+
+```sh
+# 生成 device-flow 授权链接/扫码信息
+wb lark login --no-wait
+
+# 查看授权状态
+wb lark status
+
+# 读取 / 搜索 / 发送消息
+wb lark messages --chat-id oc_xxx
+wb lark search --query "关键词"
+wb lark send --chat-id oc_xxx --text "hello"
+```
+
+当前飞书是 CLI 控制通道，支持登录、读消息、搜消息、发消息；还不是实时事件通道，因此飞书消息暂不会自动推给 Pi 回复。
+
+### 7. Pi / OpenCLI 透传
+
+```sh
+wb pi -- --help
+wb pi -- --print "分析当前项目结构"
+
+wb opencli -- --help
+wb opencli -- wx-cli help
+```
+
+### 8. 测试
+
+```sh
+npm run test:analysis
+node ./cli.js --help
+node ./cli.js wx help
+node ./cli.js pi -- --help
+```
+
+如果使用 OpenAI、Claude、Kimi 等云端服务，请确保对应 API Key、余额和网络代理可用。
 
 ## 你要修改的
 
 很多人说运行后不会自动收发信息，不是的哈，为了防止给每一条收到的消息都自动回复（太恐怖了），所以加了限制条件。
 
-你要把下面提到的地方自定义修改下。
+你要把下面提到的地方自定义修改下：
 
-- 群聊，记得把机器人名称改成你自己微信号的名称，然后添加对应群聊的名称到白名单中，这样就可以自动回复群聊消息了。
-- 私聊，记得把需要自动回复的好友名称添加到白名单中，这样就可以自动回复私聊消息了。
-- 更深入的可以通过修改 `src/wechaty/sendMessage.js` 文件来满足你自己的业务场景。（大多人反馈可能无法自动回复，也可以通过调试这个文件来排查具体原因）
+- `BOT_NAME`：改成你启动机器人账号的微信昵称，格式类似 `@可乐`。
+- `ALIAS_WHITELIST`：允许自动回复的好友备注或昵称。
+- `ROOM_WHITELIST`：允许自动回复的群聊名称。
+- `AUTO_REPLY_PREFIX`：可选，只有匹配指定前缀才自动回复。
+- `PI_AGENT_ARGS`：Pi 作为 IM agent 时的参数，默认是 `--print --no-session`。
+- 更深入的业务逻辑可以看 `src/wechaty/sendMessage.js` 和 `src/platforms/wechat/commandRouter.js`。
 
 在.env 文件中修改你的配置即可，示例如下
 
@@ -259,9 +431,13 @@ ROOM_WHITELIST=XX群1,群2
 #自动回复前缀匹配，文本消息匹配到指定前缀时，才会触发自动回复，不配或配空串情况下该配置不生效（适用于用大号，不期望每次被@或者私聊时都触发自动回复的人群）
 #匹配规则：群聊消息去掉${BOT_NAME}并trim后进行前缀匹配，私聊消息trim后直接进行前缀匹配
 AUTO_REPLY_PREFIX=''
+
+# Pi agent
+PI_BIN='pi'
+PI_AGENT_ARGS='--print --no-session'
 ```
 
-可以看到，自动回复都是基于 `chatgpt` 的，记得要开代理，或者填写代理地址。
+自动回复不再只限于 `chatgpt`，可以通过 `--serve` 选择不同服务，例如 `pi`、`ollama`、`deepseek`、`claude`、`ChatGPT`。
 
 ![](https://github.com/user-attachments/assets/1c312cf4-73d8-44a1-8f36-5ea288ac0aa4)
 
@@ -297,27 +473,27 @@ AUTO_REPLY_PREFIX=''
   SET PUPPETEER_SKIP_DOWNLOAD='true'
   ```
 
-- 确保你们的终端走了代理 (开全局代理，或者手动设置终端走代理)
+- 如果使用云端模型，确保终端网络可以访问对应模型服务（开全局代理，或者手动设置终端代理）
 
   ```sh
   # 设置代理
   export https_proxy=http://127.0.0.1:你的代理服务端口号;export http_proxy=http://127.0.0.1:你的代理服务端口号;export all_proxy=socks5://127.0.0.1:你的代理服务端口号
-  # 然后再执行 npm run test
-  npm run test
+  # 然后执行对应服务测试，或先查看 CLI 是否正常
+  node ./cli.js --help
   ```
 
   ![](https://raw.githubusercontent.com/wangrongding/image-house/master/202403231002859.png)
 
-- 确保你的 openai key 有余额
-- 配置好 .env 文件
-- 执行 npm run test 能成功拿到 openai 的回复(设置完代理后，仍然请求不通？ 可以参考： https://medium.com/@chanter2d/%E5%85%B3%E4%BA%8E%E5%A6%82%E4%BD%95%E4%BD%BF%E7%94%A8clash%E5%AE%9E%E7%8E%B0%E7%9C%9F%E6%AD%A3%E7%9A%84%E5%85%A8%E5%B1%80%E4%BB%A3%E7%90%86-385b2d745871)
-- 执行 npm run dev 愉快的玩耍吧~ 🎉
+- 如果使用 OpenAI / Claude / Kimi 等云端模型，确认 API Key、余额、模型名和代理配置正确
+- 配置好 `.env` 文件，尤其是 `BOT_NAME`、白名单和当前 `--serve` 服务所需参数
+- 执行 `npm run test:analysis` 验证本地分析模块，执行 `node ./cli.js --help` 验证 CLI
+- 执行 `wb agent --im wechat --agent pi` 或 `wb start --serve <服务名>` 启动微信扫码
 
 也可以参考这条 [issue](https://github.com/wangrongding/wechat-bot/issues/54#issuecomment-1347880291)
 
 - 怎么玩？ 完成自定义修改后，群聊时，在白名单中的群，有人 @你 时会触发自动回复，私聊中，联系人白名单中的人发消息给你时会触发自动回复。
 - 运行报错？检查 node 版本是否符合，如果不符合，升级 node 版本即可，检查依赖是否安装完整，如果不完整，大陆推荐切换下 npm 镜像源，然后重新安装依赖即可。（可以用我的 [prm-cli](https://github.com/wangrongding/prm-cli) 工具快速切换）
-- 调整对话模式？可以修改[openai/index.js](./src/openai/index.js) ,具体可以根据官方文档给出的示例（非常多，自己对应调整参数即可） ：https://beta.openai.com/examples
+- 调整对话模式？优先通过 `--serve` 切换服务；需要定制业务逻辑时看 [sendMessage.js](./src/wechaty/sendMessage.js)、[commandRouter.js](./src/platforms/wechat/commandRouter.js) 和对应 provider 实现。
 
 ## 使用 Docker 部署
 

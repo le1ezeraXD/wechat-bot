@@ -1,21 +1,6 @@
-import dotenv from 'dotenv'
-// 加载环境变量
-dotenv.config()
-const env = dotenv.config().parsed // 环境参数
-
-// 从环境变量中导入机器人的名称
-const botName = env.BOT_NAME
-
-// 从环境变量中导入需要自动回复的消息前缀，默认配空串或不配置则等于无前缀
-const autoReplyPrefix = env.AUTO_REPLY_PREFIX ? env.AUTO_REPLY_PREFIX : ''
-
-// 从环境变量中导入联系人白名单
-const aliasWhiteList = env.ALIAS_WHITELIST ? env.ALIAS_WHITELIST.split(',') : []
-
-// 从环境变量中导入群聊白名单
-const roomWhiteList = env.ROOM_WHITELIST ? env.ROOM_WHITELIST.split(',') : []
-
 import { getServe } from './serve.js'
+import { getWechatRuntimeConfig } from '../config/env.js'
+import { handleWechatCommand } from '../platforms/wechat/commandRouter.js'
 
 /**
  * 默认消息发送
@@ -25,6 +10,7 @@ import { getServe } from './serve.js'
  * @returns {Promise<void>}
  */
 export async function defaultMessage(msg, bot, ServiceType = 'GPT') {
+  const { botName, autoReplyPrefix, aliasWhiteList, roomWhiteList, commandPrefix } = getWechatRuntimeConfig()
   const getReply = getServe(ServiceType)
   const contact = msg.talker() // 发消息人
   const receiver = msg.to() // 消息接收人
@@ -39,9 +25,26 @@ export async function defaultMessage(msg, bot, ServiceType = 'GPT') {
   const isAlias = aliasWhiteList.includes(remarkName) || aliasWhiteList.includes(name) // 发消息的人是否在联系人白名单内
   const isBotSelf = botName === `@${remarkName}` || botName === `@${name}` // 是否是机器人自己
   const isBotSelfDebug = content.trimStart().startsWith('你是谁') // 是否是机器人自己的调试消息
+  const isAuthorizedCommand = (room && isRoom) || (!room && isAlias)
   // TODO 你们可以根据自己的需求修改这里的逻辑
   if ((isBotSelf && !isBotSelfDebug) || !isText) return // 如果是机器人自己发送的消息或者消息类型不是文本则不处理
   try {
+    if (content.replace(`${botName}`, '').trimStart().startsWith(commandPrefix)) {
+      if (!isAuthorizedCommand) return
+      const commandResult = await handleWechatCommand(content, {
+        serviceType: ServiceType,
+        roomName,
+        alias,
+        name,
+      })
+      if (commandResult.handled) {
+        if (commandResult.reply) {
+          await (room || contact).say(commandResult.reply)
+        }
+        return
+      }
+    }
+
     // 区分群聊和私聊
     // 群聊消息去掉艾特主体后，匹配自动回复前缀
     if (isRoom && room && content.replace(`${botName}`, '').trimStart().startsWith(`${autoReplyPrefix}`)) {
